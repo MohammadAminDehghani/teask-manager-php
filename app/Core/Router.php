@@ -19,22 +19,37 @@ class Router
         return $route;
     }
 
-    public function handle(string $requestUri): void
+    public function handle(string $requestUri, Container $container): void
     {
         $method = $_SERVER['REQUEST_METHOD'];
         $path = parse_url($requestUri, PHP_URL_PATH);
+
+        $request = Request::capture();
+        //$request->header('Authorization');
+        $response = new Response();
 
         foreach ($this->routes as $route) {
             if ($route['method'] === $method && preg_match($route['pattern'], $path, $matches)) {
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
 
+                // Handle middleware
+                $middlewareStack = $this->buildMiddlewareStack($route['middleware'], $container);
+                $this->processMiddlewareStack($middlewareStack, $request, $response, function () use ($route, $container, $request, $response, $params) {
+                    if (is_array($route['action'])) {
+                        [$controllerClass, $method] = $route['action'];
 
-                // Instantiate the controller
-                [$controllerClass, $method] = $route['action'];
-                $controller = new $controllerClass();
+                        $controllerInstance = $container->get($controllerClass);
+                        call_user_func_array([$controllerInstance, $method], [$request, $response, ...$params]);
+                    } else {
+                        call_user_func($route['action'], [$request, $response, ...$params]);
+                    }
 
-                // Call the method on the controller instance
-                call_user_func_array([$controller, $method], $params);
+                    if ($response instanceof Response) {
+                        $response->send();
+                    } else {
+                        echo $response;
+                    }
+                });
 
                 return;
             }
@@ -44,77 +59,27 @@ class Router
         echo "404 Not Found";
     }
 
-
-
-public function addRoute(string $method, string $path, callable $action): void
+    private function buildMiddlewareStack(array $middlewareClasses, Container $container): array
     {
-        // Convert placeholders like {id} to named capture groups in regex
-        $pattern = preg_replace('/{(\w+)}/', '(?P<$1>[^/]+)', $path);
-
-        // Add delimiters to the regex pattern
-        $pattern = '#^' . $pattern . '$#';
-
-        $this->routes[] = [
-            'method' => $method,
-            'pattern' => $pattern,
-            'action' => $action,
-        ];
+        $middlewareStack = [];
+        foreach ($middlewareClasses as $middlewareClass) {
+            $middlewareStack[] = $container->get($middlewareClass);
+        }
+        return $middlewareStack;
     }
+
+    private function processMiddlewareStack(array $middlewareStack, Request $request, Response $response, callable $next): void
+    {
+        if (empty($middlewareStack)) {
+            $next();
+            return;
+        }
+
+        $currentMiddleware = array_shift($middlewareStack);
+        $currentMiddleware->handle($request, $response, function () use ($middlewareStack, $request, $response, $next) {
+            $this->processMiddlewareStack($middlewareStack, $request, $response, $next);
+        });
+    }
+
+
 }
-
-
-//
-//namespace App\Core;
-//
-//class Router
-//{
-//    private array $routes;
-//
-//    public function __construct(array $routes)
-//    {
-//        $this->routes = $routes;
-//    }
-//
-//    public function handle(string $requestUri)
-//    {
-//        $uri = parse_url($requestUri, PHP_URL_PATH);
-//
-//        foreach ($this->routes as $route => $action) {
-//
-//
-//            $pattern = $this->convertRouteToRegex($route);
-//
-//            if (preg_match($pattern, $uri, $matches)) {
-//                array_shift($matches); // Remove the full match
-//                return $this->dispatch($action, $matches);
-//            }
-//        }
-//
-//        http_response_code(404);
-//        echo "404 Not Found";
-//    }
-//
-//    private function convertRouteToRegex(string $route): string
-//    {
-//        return '@^' . preg_replace('/\{(\w+)\}/', '(?P<$1>[^/]+)', $route) . '$@';
-//    }
-//
-//    private function dispatch($action, array $parameters): void
-//    {
-//        [$controller, $method] = $action;
-//
-//        if (!class_exists($controller)) {
-//            throw new \Exception("Controller $controller not found");
-//        }
-//
-//        $controllerInstance = new $controller();
-//
-//        if (!method_exists($controllerInstance, $method)) {
-//            throw new \Exception("Method $method not found in $controller");
-//        }
-//        dump($parameters);
-//        $parameters = array_values($parameters);
-//        dump($parameters);
-//        $controllerInstance->$method(...$parameters);
-//    }
-//}
