@@ -18,11 +18,11 @@ class UserController
 //    }
     public function show(Request $request, Response $response, $id = null)
     {
-        Config::load('database');
-
-        Config::get('database.driver');
-        //dump();
-        return 4;
+//        Config::load('database');
+//
+//        Config::get('database.driver');
+//        //dump();
+//        return 4;
         $userModel = new User();
         $user = $userModel->find($id);
 

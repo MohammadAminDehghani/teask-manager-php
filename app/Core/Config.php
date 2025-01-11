@@ -6,7 +6,7 @@ class Config
 {
     protected static array $config = [];
 
-    public static function load(string $filePath): void
+    public static function load(string $filePath)
     {
         $file = __DIR__ . "/../../config/" . $filePath . ".php";
 
@@ -15,6 +15,8 @@ class Config
         } else {
             throw new \Exception("Configuration file not found: {$file}");
         }
+
+        return self::$config;
     }
 
     public static function get(string $key, $default = null)
