@@ -13,11 +13,15 @@
 //$app->run($_SERVER['REQUEST_URI']);
 
 
+use App\Controllers\Api\v1\AuthController;
 use App\Controllers\HomeController;
 use App\Controllers\UserController;
 use App\Core\App;
 use App\Core\Container;
+use App\Core\Database;
+use App\Core\MigrationRunner;
 use App\Core\Router;
+use App\Core\Session;
 use App\Middleware\AuthMiddleware;
 
 // Display errors for development (disable in production)
@@ -31,10 +35,33 @@ require_once __DIR__ . '/../app/Helpers/functions.php';
 // Load routes
 $webRoutes = include __DIR__ . '/../routes/web.php';
 $apiRoutes = include __DIR__ . '/../routes/api.php';
+$configDB = include __DIR__ . '/../config/database.php';
+
+
+
+
+Database::connect($configDB);
+
+if (php_sapi_name() === 'cli' && isset($argv[1]) && $argv[1] === 'migrate') {
+    $runner = new MigrationRunner();
+    $runner->runMigrations();
+    exit;
+}
+
+if (php_sapi_name() === 'cli' && isset($argv[1]) && $argv[1] === 'rollback') {
+    $runner = new MigrationRunner();
+    $runner->rollbackLastMigration();
+    exit;
+}
+
 
 
 //session_start();
 //$_SESSION['user'] = ['id' => 4, 'name' => 'Amin'];
+
+// Start session
+$session = new Session();
+$session->start();
 
 
 // Create the container
@@ -49,6 +76,13 @@ $container->set(UserController::class, function () {
     return new UserController();
 });
 
+$container->set(AuthController::class, function () {
+    return new AuthController();
+});
+
+
+
+// Register middleware
 $container->set(AuthMiddleware::class, function () {
     return new AuthMiddleware();
 });

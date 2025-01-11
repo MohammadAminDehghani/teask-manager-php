@@ -2,39 +2,65 @@
 
 namespace App\Controllers;
 
+use App\Core\Config;
 use App\Core\Request;
 use App\Core\Response;
+use App\Models\User;
 
 class UserController
 {
+
+//    public function index(Request $request, Response $response): void
+//    {
+//        $userModel = new User();
+//        $users = $userModel->all();
+//        $response->json($users);
+//    }
     public function show(Request $request, Response $response, $id = null)
     {
-        //dump($response);
-        $name = $request->get('name');
-        return $response->json([
-            'id' => $id,
-            'family' => $request->input('family'),
-            'parameters' => $request->all()
-        ]);
+        Config::load('database');
 
-        //dump($response);
-        echo "User ID: ".$id;
+        Config::get('database.driver');
+        //dump();
+        return 4;
+        $userModel = new User();
+        $user = $userModel->find($id);
+
+        if ($user) {
+            //dump($user);
+            $user = json_decode(json_encode($user), true);
+            $response->json($user);
+        } else {
+            $response->setStatusCode(404)->json(['error' => 'User not found']);
+        }
     }
 
 
-    public function store(Request $request, $id = null)
+    public function store(Request $request, Response $response)
     {
-        //dump($request);
-        //$name = $request->get('name');
-        return Response::json([
-            'id' => $id,
-            'age' => $request->input('age'),
-            'parameters' => $request->all()
-        ]);
+        $user = new User();
+
+        try {
+            $user->create([
+                'name' => 'akbar',
+                'password' => 123,
+                'email' => 'akbar@a.com',
+            ]);
+
+            return $response->json(['success' => 'User created']);
+
+        }catch (\Exception $e){
+            return $response->setStatusCode(500)->json(['error' => $e->getMessage()]);
+        }
+
+
+        //return $response->json(['success' => 'User created']);
 
         //dump($response);
         //echo "User ID: ".$id;
     }
+
+
 }
 
 
