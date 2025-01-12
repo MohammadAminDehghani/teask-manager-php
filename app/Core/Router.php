@@ -4,7 +4,7 @@ namespace App\Core;
 
 class Router
 {
-    private array $routes = [];
+    private array $routes;
 
     public function __construct(array $routes)
     {
@@ -14,27 +14,28 @@ class Router
     private function convertPattern(array $route): array
     {
         // Replace placeholders like {id} with regex patterns
-        $route['pattern'] = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '(?P<\1>[^/]+)', $route['pattern']);
+        $route['pattern'] = preg_replace('/\{([a-zA-Z0-9_]+)}/', '(?P<\1>[^/]+)', $route['pattern']);
         $route['pattern'] = '/^' . str_replace('/', '\/', $route['pattern']) . '$/';
         return $route;
     }
 
     public function handle(string $requestUri, Container $container): void
     {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $path = parse_url($requestUri, PHP_URL_PATH);
 
         $request = Request::capture();
-        //$request->header('Authorization');
         $response = new Response();
+        $method = $request->method();
+        $path = $request->path();
 
         foreach ($this->routes as $route) {
             if ($route['method'] === $method && preg_match($route['pattern'], $path, $matches)) {
                 $params = array_filter($matches, 'is_string', ARRAY_FILTER_USE_KEY);
 
                 // Handle middleware
-                $middlewareStack = $this->buildMiddlewareStack($route['middleware'], $container);
-                $this->processMiddlewareStack($middlewareStack, $request, $response, function () use ($route, $container, $request, $response, $params) {
+                $middlewareStack = isset($route['middleware']) ? $this->buildMiddlewareStack($route['middleware'], $container) : [];
+                $this->processMiddlewareStack(/**
+                 * @throws \Exception
+                 */ $middlewareStack, $request, $response, function () use ($route, $container, $request, $response, $params) {
                     if (is_array($route['action'])) {
                         [$controllerClass, $method] = $route['action'];
 
@@ -47,7 +48,7 @@ class Router
                     if ($response instanceof Response) {
                         $response->send();
                     } else {
-                        echo $response;
+                        throw new \Exception("Unexpected response type");
                     }
                 });
 

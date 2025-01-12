@@ -10,24 +10,19 @@ use App\Models\User;
 class UserController
 {
 
-//    public function index(Request $request, Response $response): void
-//    {
-//        $userModel = new User();
-//        $users = $userModel->all();
-//        $response->json($users);
-//    }
+    public function index(Request $request, Response $response): void
+    {
+        $userModel = new User();
+        $users = $userModel->all();
+        $response->json($users);
+    }
     public function show(Request $request, Response $response, $id = null)
     {
-//        Config::load('database');
-//
-//        Config::get('database.driver');
-//        //dump();
-//        return 4;
+
         $userModel = new User();
         $user = $userModel->find($id);
 
         if ($user) {
-            //dump($user);
             $user = json_decode(json_encode($user), true);
             $response->json($user);
         } else {
@@ -53,11 +48,6 @@ class UserController
             return $response->setStatusCode(500)->json(['error' => $e->getMessage()]);
         }
 
-
-        //return $response->json(['success' => 'User created']);
-
-        //dump($response);
-        //echo "User ID: ".$id;
     }
 
 

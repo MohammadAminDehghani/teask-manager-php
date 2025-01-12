@@ -1,42 +1,33 @@
 <?php
 
+
 namespace App\Core;
 
 use PDO;
+use ReflectionClass;
 
 class Model
 {
-    //protected string $table;
     protected PDO $connection;
-
     protected string $table;
-
-    /**
-     * Get the table name for the model.
-     */
-    public static function getTable(): string
-    {
-        return static::$table ?? strtolower((new \ReflectionClass())->getShortName()) . 's';
-    }
 
     public function __construct()
     {
         $this->connection = Database::getConnection();
+        $this->table = $this->getTableName();
     }
 
-//    public function all(): array
-//    {
-//        $stmt = $this->connection->query("SELECT * FROM {$this->table}");
-//        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-//    }
+    /**
+     * Automatically determine the table name based on the class name.
+     */
+    protected function getTableName(): string
+    {
+        return $this->table ?? strtolower((new ReflectionClass($this))->getShortName()) . 's';
+    }
 
-//    public function find($id): ?array
-//    {
-//        $stmt = $this->connection->prepare("SELECT * FROM {$this->table} WHERE id = :id");
-//        $stmt->execute(['id' => $id]);
-//        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-//    }
-
+    /**
+     * Create a new record in the database.
+     */
     public function create(array $data): bool
     {
         $columns = implode(',', array_keys($data));
@@ -46,25 +37,31 @@ class Model
     }
 
     /**
-     * Get records matching conditions.
+     * Retrieve records matching a condition and return model instances.
      */
-    public function where(string $column, $value)
+    public function where(string $column, $value): ?self
     {
-        $stmt = $this->connection->prepare("SELECT * FROM {$this->table} WHERE {$column} = :value");
+        $stmt = $this->connection->prepare("SELECT * FROM {$this->table} WHERE {$column} = :value LIMIT 1");
         $stmt->execute(['value' => $value]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $stmt->fetchAll(PDO::FETCH_CLASS);
+        return $result ? $this->mapToModel($result) : null;
     }
 
+    /**
+     * Update a record by its primary key.
+     */
     public function update($id, array $data): bool
     {
         $setClause = implode(',', array_map(fn($key) => "$key = :$key", array_keys($data)));
         $data['id'] = $id;
-
         $stmt = $this->connection->prepare("UPDATE {$this->table} SET $setClause WHERE id = :id");
         return $stmt->execute($data);
     }
 
+    /**
+     * Delete a record by its primary key.
+     */
     public function delete($id): bool
     {
         $stmt = $this->connection->prepare("DELETE FROM {$this->table} WHERE id = :id");
@@ -72,83 +69,38 @@ class Model
     }
 
     /**
-     * Get all records.
+     * Retrieve all records as model instances.
      */
     public function all(): array
     {
         $stmt = $this->connection->query("SELECT * FROM {$this->table}");
-        return $stmt->fetchAll(PDO::FETCH_CLASS, );
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_map([$this, 'mapToModel'], $results);
     }
 
     /**
-     * Find a record by its primary key.
+     * Find a record by its primary key and return as a model instance.
      */
-    public function find(int | string $id)
+    public function find($id): ?self
     {
         $stmt = $this->connection->prepare("SELECT * FROM {$this->table} WHERE id = :id LIMIT 1");
         $stmt->execute(['id' => $id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $stmt->fetchObject();
+        return $result ? $this->mapToModel($result) : null;
     }
 
     /**
-     * Get the first record matching the conditions.
+     * Map an associative array to the model instance.
      */
-    public function first(array $conditions = [])
+    private function mapToModel(array $data): self
     {
-        $query = self::buildQuery($conditions, 'LIMIT 1');
-        $stmt = $this->connection->prepare($query['sql']);
-        $stmt->execute($query['bindings']);
-
-        return $stmt->fetchObject();
-    }
-
-    /**
-     * Get the last record matching the conditions.
-     */
-    public function last(array $conditions = [])
-    {
-        $query = self::buildQuery($conditions, 'ORDER BY id DESC LIMIT 1');
-        $stmt = $this->connection->prepare($query['sql']);
-        $stmt->execute($query['bindings']);
-
-        return $stmt->fetchObject();
-    }
-
-    /**
-     * Get the latest record by a specific column.
-     */
-    public function latest(string $column = 'created_at', array $conditions = [])
-    {
-        $query = self::buildQuery($conditions, "ORDER BY {$column} DESC LIMIT 1");
-        $stmt = $this->connection->prepare($query['sql']);
-        $stmt->execute($query['bindings']);
-
-        return $stmt->fetchObject();
-    }
-
-    /**
-     * Helper to build dynamic queries.
-     */
-    private function buildQuery(array $conditions, string $suffix = ''): array
-    {
-
-        $sql = "SELECT * FROM {$this->table}";
-        $bindings = [];
-
-        if (!empty($conditions)) {
-            $whereClauses = [];
-            foreach ($conditions as $column => $value) {
-                $whereClauses[] = "{$column} = :{$column}";
-                $bindings[$column] = $value;
+        foreach ($data as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->{$key} = $value;
             }
-            $sql .= " WHERE " . implode(' AND ', $whereClauses);
         }
-
-        $sql .= " {$suffix}";
-
-        return ['sql' => $sql, 'bindings' => $bindings];
+        return $this;
     }
-
 }
-

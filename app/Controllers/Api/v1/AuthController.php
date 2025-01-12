@@ -10,6 +10,7 @@ use App\Models\User;
 class AuthController {
     public function login(Request $request, Response $response): Response
     {
+
         $email = $request->input('email');
         $password = $request->input('password');
 
@@ -17,12 +18,12 @@ class AuthController {
             return $response->json(['error', 'email and password are required']);
         }
 
-        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $password = password_hash($password, PASSWORD_DEFAULT);
 
         $user = new User();
 
-        $user->where('email', $email);
-
+        $user = $user->where('email', $email) ;
+        var_dump($user->name);
         if(!$user || password_verify($password, $user->password)){
             return $response->json(['error', 'Invalid credentials']);
         }
